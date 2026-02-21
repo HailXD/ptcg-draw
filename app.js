@@ -1,6 +1,7 @@
 const API_BASE = "https://api-pearl-two-79.vercel.app";
 const PACKS_ENDPOINT = `${API_BASE}/api/packs`;
 const DRAW_ENDPOINT = `${API_BASE}/api/draw`;
+const RESULT_END_MARKER = "\n\n===\n";
 
 const state = {
   packs: [],
@@ -129,6 +130,14 @@ function getSelectedPacks() {
   return selected;
 }
 
+function withResultEndMarker(value) {
+  const text = String(value ?? "");
+  if (text.endsWith(RESULT_END_MARKER)) {
+    return text;
+  }
+  return `${text}${RESULT_END_MARKER}`;
+}
+
 async function openSelectedPacks() {
   const selected = getSelectedPacks();
   if (selected.length === 0) {
@@ -145,7 +154,7 @@ async function openSelectedPacks() {
       body: JSON.stringify({ packs: selected })
     });
     const resultText = payload && typeof payload.text === "string" ? payload.text : "";
-    elements.resultText.value = resultText;
+    elements.resultText.value = withResultEndMarker(resultText);
     const packCount = Number(payload?.packCount) || 0;
     const cardCount = Number(payload?.cardCount) || 0;
     setStatus(`Opened ${packCount} packs and drew ${cardCount} cards.`);
