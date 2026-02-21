@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PTCG Pack Draw Simulator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <section class="panel top">
+      <h1>PTCG Pack Draw Simulator</h1>
+      <p class="subtitle">Load packs from <code>data/cards.sqlite</code>, set quantity per pack, and open.</p>
+      <div class="toolbar">
+        <input id="searchInput" type="search" placeholder="Search pack name or series">
+        <button id="resetBtn" type="button">Reset Quantities</button>
+        <button id="openBtn" type="button">Open Selected Packs</button>
+      </div>
+      <p id="statusText" class="status">Loading database...</p>
+    </section>
+    <section class="panel pack-panel">
+      <h2>Packs</h2>
+      <div id="packList" class="pack-list"></div>
+    </section>
+    <section class="panel result-panel">
+      <div class="result-header">
+        <h2>Results</h2>
+        <button id="copyBtn" type="button">Copy Text</button>
+      </div>
+      <textarea id="resultText" readonly placeholder="Open packs to generate output."></textarea>
+    </section>
+  </main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

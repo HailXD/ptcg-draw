@@ -1,0 +1,354 @@
+const DB_PATH = "data/cards.sqlite";
+const SQLJS_CDN_BASE = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/";
+const SLOT_DEFINITION = [
+  { slot: 1, rarity_pool: { Common: 100.0 } },
+  { slot: 2, rarity_pool: { Common: 100.0 } },
+  { slot: 3, rarity_pool: { Common: 100.0 } },
+  { slot: 4, rarity_pool: { Common: 100.0 } },
+  { slot: 5, rarity_pool: { Uncommon: 100.0 } },
+  { slot: 6, rarity_pool: { Uncommon: 100.0 } },
+  { slot: 7, rarity_pool: { Uncommon: 100.0 } },
+  { slot: 8, rarity_pool: { Common: 60.0, Uncommon: 40.0 } },
+  { slot: 9, rarity_pool: { Rare: 80.0, "Rare Holo": 20.0 } },
+  {
+    slot: 10,
+    rarity_pool: {
+      Rare: 25.0,
+      "Rare Holo": 15.0,
+      "Double Rare": 8.0,
+      "Rare Holo EX": 5.0,
+      "Rare Holo GX": 5.0,
+      "Rare Holo V": 5.0,
+      "Rare Ultra": 3.0,
+      "Ultra Rare": 3.0,
+      "Rare Holo VMAX": 3.0,
+      "Rare Holo VSTAR": 3.0,
+      "Rare BREAK": 2.0,
+      "Rare Prime": 2.0,
+      "Illustration Rare": 2.0,
+      "Rare ACE": 1.5,
+      "ACE SPEC Rare": 1.5,
+      "Rare Prism Star": 1.5,
+      "Radiant Rare": 1.5,
+      "Classic Collection": 1.5,
+      "Trainer Gallery Rare Holo": 1.5,
+      LEGEND: 1.0,
+      "Amazing Rare": 1.0,
+      "Black White Rare": 1.0,
+      "Rare Shining": 1.0,
+      "Rare Shiny": 1.0,
+      "Shiny Rare": 1.0,
+      "Special Illustration Rare": 1.0,
+      "Rare Shiny GX": 0.5,
+      "Shiny Ultra Rare": 0.5,
+      "Rare Holo LV.X": 0.5,
+      "Rare Secret": 0.3,
+      "Hyper Rare": 0.3,
+      "Rare Rainbow": 0.3,
+      "Rare Holo Star": 0.2,
+      "Mega Hyper Rare": 0.2,
+      MEGA_ATTACK_RARE: 0.2
+    }
+  }
+];
+
+const state = {
+  db: null,
+  packs: [],
+  filteredPacks: [],
+  quantities: new Map(),
+  packCardGroups: new Map()
+};
+
+const elements = {
+  searchInput: document.getElementById("searchInput"),
+  resetBtn: document.getElementById("resetBtn"),
+  openBtn: document.getElementById("openBtn"),
+  copyBtn: document.getElementById("copyBtn"),
+  statusText: document.getElementById("statusText"),
+  packList: document.getElementById("packList"),
+  resultText: document.getElementById("resultText")
+};
+
+function packKey(pack) {
+  return `${pack.packName}\u0000${pack.packSeries}\u0000${pack.releaseDate}`;
+}
+
+function setStatus(text, isError = false) {
+  elements.statusText.textContent = text;
+  elements.statusText.classList.toggle("error", isError);
+}
+
+function execRows(sql, params = []) {
+  const stmt = state.db.prepare(sql);
+  stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) {
+    rows.push(stmt.getAsObject());
+  }
+  stmt.free();
+  return rows;
+}
+
+function normalizePackRow(row) {
+  return {
+    packName: row.packName == null ? "" : String(row.packName),
+    packSeries: row.packSeries == null ? "" : String(row.packSeries),
+    releaseDate: row.releaseDate == null ? "" : String(row.releaseDate),
+    cardCount: Number(row.cardCount) || 0
+  };
+}
+
+function loadPacks() {
+  const rows = execRows(
+    `SELECT packName, packSeries, releaseDate, COUNT(*) AS cardCount
+     FROM cards
+     WHERE packName IS NOT NULL
+     GROUP BY packName, packSeries, releaseDate
+     ORDER BY releaseDate DESC, packName ASC`
+  );
+  state.packs = rows.map(normalizePackRow);
+  state.filteredPacks = state.packs.slice();
+}
+
+function renderPacks() {
+  const fragment = document.createDocumentFragment();
+  for (const pack of state.filteredPacks) {
+    const key = packKey(pack);
+    const row = document.createElement("div");
+    row.className = "pack-row";
+
+    const info = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "pack-name";
+    name.textContent = pack.packName;
+
+    const meta = document.createElement("div");
+    meta.className = "pack-meta";
+    meta.textContent = `${pack.packSeries} | ${pack.releaseDate} | ${pack.cardCount} cards`;
+
+    info.append(name, meta);
+
+    const quantityInput = document.createElement("input");
+    quantityInput.type = "number";
+    quantityInput.min = "0";
+    quantityInput.step = "1";
+    quantityInput.value = String(state.quantities.get(key) || 0);
+    quantityInput.addEventListener("input", () => {
+      const parsed = Number.parseInt(quantityInput.value, 10);
+      const quantity = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      state.quantities.set(key, quantity);
+      if (quantity === 0 && quantityInput.value !== "0" && quantityInput.value !== "") {
+        quantityInput.value = "0";
+      }
+    });
+
+    row.append(info, quantityInput);
+    fragment.append(row);
+  }
+
+  elements.packList.innerHTML = "";
+  elements.packList.append(fragment);
+}
+
+function applyFilter() {
+  const q = elements.searchInput.value.trim().toLowerCase();
+  if (!q) {
+    state.filteredPacks = state.packs.slice();
+  } else {
+    state.filteredPacks = state.packs.filter((pack) => {
+      return (
+        pack.packName.toLowerCase().includes(q) ||
+        pack.packSeries.toLowerCase().includes(q) ||
+        pack.releaseDate.toLowerCase().includes(q)
+      );
+    });
+  }
+  renderPacks();
+}
+
+function getSelectedPacks() {
+  const selected = [];
+  for (const pack of state.packs) {
+    const quantity = state.quantities.get(packKey(pack)) || 0;
+    if (quantity > 0) {
+      selected.push({ pack, quantity });
+    }
+  }
+  return selected;
+}
+
+function buildPackGroups(pack) {
+  const key = packKey(pack);
+  if (state.packCardGroups.has(key)) {
+    return state.packCardGroups.get(key);
+  }
+  const rows = execRows(
+    `SELECT id, rarity
+     FROM cards
+     WHERE packName = ?
+       AND IFNULL(packSeries, '') = ?
+       AND IFNULL(releaseDate, '') = ?
+       AND rarity IS NOT NULL`,
+    [pack.packName, pack.packSeries, pack.releaseDate]
+  );
+  const groups = new Map();
+  for (const row of rows) {
+    const rarity = String(row.rarity);
+    const id = String(row.id);
+    const list = groups.get(rarity);
+    if (list) {
+      list.push(id);
+    } else {
+      groups.set(rarity, [id]);
+    }
+  }
+  state.packCardGroups.set(key, groups);
+  return groups;
+}
+
+function compileSlotPools(groups) {
+  return SLOT_DEFINITION.map((slot) => {
+    let totalWeight = 0;
+    const bins = [];
+    for (const [rarity, weight] of Object.entries(slot.rarity_pool)) {
+      const cards = groups.get(rarity);
+      if (!cards || cards.length === 0 || weight <= 0) {
+        continue;
+      }
+      totalWeight += weight;
+      bins.push({ rarity, ceiling: totalWeight });
+    }
+    return { bins, totalWeight };
+  });
+}
+
+function chooseRarity(compiledSlot) {
+  if (compiledSlot.totalWeight <= 0) {
+    return "";
+  }
+  const roll = Math.random() * compiledSlot.totalWeight;
+  for (const bin of compiledSlot.bins) {
+    if (roll < bin.ceiling) {
+      return bin.rarity;
+    }
+  }
+  return compiledSlot.bins[compiledSlot.bins.length - 1].rarity;
+}
+
+function simulatePackDraw(quantity, groups, slotPools) {
+  const counts = new Map();
+  let totalCards = 0;
+  for (let packIndex = 0; packIndex < quantity; packIndex += 1) {
+    for (const slot of slotPools) {
+      if (slot.totalWeight <= 0) {
+        continue;
+      }
+      const rarity = chooseRarity(slot);
+      if (!rarity) {
+        continue;
+      }
+      const cards = groups.get(rarity);
+      if (!cards || cards.length === 0) {
+        continue;
+      }
+      const id = cards[Math.floor(Math.random() * cards.length)];
+      counts.set(id, (counts.get(id) || 0) + 1);
+      totalCards += 1;
+    }
+  }
+  return { counts, totalCards };
+}
+
+function buildResultText(resultEntries) {
+  const lines = [];
+  for (const entry of resultEntries) {
+    const { pack, quantity, draw } = entry;
+    lines.push(`${pack.packName} | ${pack.packSeries} | ${pack.releaseDate} | opened ${quantity}`);
+    const sortedCards = [...draw.counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    for (const [id, count] of sortedCards) {
+      lines.push(`${id} x${count}`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n").trim();
+}
+
+async function openSelectedPacks() {
+  const selected = getSelectedPacks();
+  if (selected.length === 0) {
+    setStatus("Select at least one pack quantity.", true);
+    return;
+  }
+
+  elements.openBtn.disabled = true;
+  setStatus("Opening packs...");
+
+  const results = [];
+  for (const entry of selected) {
+    const groups = buildPackGroups(entry.pack);
+    const slotPools = compileSlotPools(groups);
+    const draw = simulatePackDraw(entry.quantity, groups, slotPools);
+    results.push({ ...entry, draw });
+  }
+
+  elements.resultText.value = buildResultText(results);
+  const packCount = selected.reduce((sum, item) => sum + item.quantity, 0);
+  const cardCount = results.reduce((sum, item) => sum + item.draw.totalCards, 0);
+  setStatus(`Opened ${packCount} packs and drew ${cardCount} cards.`);
+  elements.openBtn.disabled = false;
+}
+
+async function copyResultText() {
+  const value = elements.resultText.value;
+  if (!value) {
+    setStatus("No result text to copy.", true);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    setStatus("Results copied.");
+  } catch (err) {
+    setStatus("Clipboard copy failed.", true);
+  }
+}
+
+function resetQuantities() {
+  state.quantities.clear();
+  renderPacks();
+  setStatus("Quantities reset.");
+}
+
+async function initDatabase() {
+  const initSqlJs = window.initSqlJs;
+  if (typeof initSqlJs !== "function") {
+    throw new Error("sql.js failed to load");
+  }
+  const SQL = await initSqlJs({
+    locateFile: (file) => `${SQLJS_CDN_BASE}${file}`
+  });
+  const response = await fetch(DB_PATH);
+  if (!response.ok) {
+    throw new Error(`Cannot fetch ${DB_PATH}`);
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  state.db = new SQL.Database(bytes);
+}
+
+async function init() {
+  try {
+    await initDatabase();
+    loadPacks();
+    renderPacks();
+    setStatus(`Loaded ${state.packs.length} packs.`);
+  } catch (err) {
+    setStatus(`Load failed: ${err.message}`, true);
+  }
+}
+
+elements.searchInput.addEventListener("input", applyFilter);
+elements.openBtn.addEventListener("click", openSelectedPacks);
+elements.copyBtn.addEventListener("click", copyResultText);
+elements.resetBtn.addEventListener("click", resetQuantities);
+
+init();

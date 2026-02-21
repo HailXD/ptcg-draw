@@ -1,0 +1,169 @@
+:root {
+  color-scheme: dark;
+  --bg: #10151a;
+  --panel: #171e26;
+  --panel-2: #212a35;
+  --text: #e4edf8;
+  --muted: #98a8ba;
+  --line: #2e3a49;
+  --accent: #76b9ff;
+  --accent-2: #5a95d6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 "Segoe UI", Tahoma, sans-serif;
+}
+
+.app {
+  width: min(1200px, calc(100vw - 32px));
+  margin: 16px auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.subtitle {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+input[type="search"],
+input[type="number"],
+button,
+textarea {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+input[type="search"] {
+  flex: 1 1 280px;
+  min-width: 220px;
+  padding: 8px 10px;
+}
+
+input[type="number"] {
+  width: 88px;
+  padding: 6px 8px;
+}
+
+button {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+#openBtn,
+#copyBtn {
+  background: var(--accent);
+  color: #041426;
+  font-weight: 700;
+  border-color: var(--accent-2);
+}
+
+#openBtn:hover,
+#copyBtn:hover {
+  background: #86c5ff;
+}
+
+.status {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.status.error {
+  color: #ff9797;
+}
+
+.pack-list {
+  display: grid;
+  gap: 8px;
+  max-height: 48vh;
+  overflow: auto;
+}
+
+.pack-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.pack-name {
+  font-weight: 700;
+}
+
+.pack-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 300px;
+  resize: vertical;
+  padding: 10px;
+  font: 13px/1.45 Consolas, "Courier New", monospace;
+}
+
+@media (max-width: 720px) {
+  .app {
+    width: calc(100vw - 16px);
+    margin: 8px auto;
+  }
+
+  .panel {
+    padding: 10px;
+  }
+
+  .pack-row {
+    grid-template-columns: 1fr;
+  }
+}
