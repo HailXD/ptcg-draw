@@ -15,6 +15,7 @@ const elements = {
   exportBtn: document.getElementById("exportBtn"),
   importBtn: document.getElementById("importBtn"),
   openBtn: document.getElementById("openBtn"),
+  drawHighestRaritySameCard: document.getElementById("drawHighestRaritySameCard"),
   copyBtn: document.getElementById("copyBtn"),
   statusText: document.getElementById("statusText"),
   packList: document.getElementById("packList"),
@@ -151,7 +152,10 @@ async function openSelectedPacks() {
     const payload = await fetchJson(DRAW_ENDPOINT, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ packs: selected })
+      body: JSON.stringify({
+        packs: selected,
+        drawHighestRaritySameCard: Boolean(elements.drawHighestRaritySameCard?.checked)
+      })
     });
     const resultText = payload && typeof payload.text === "string" ? payload.text : "";
     elements.resultText.value = withResultEndMarker(resultText);

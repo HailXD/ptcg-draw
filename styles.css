@@ -58,6 +58,21 @@ h2 {
   gap: 8px;
 }
 
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.toggle input[type="checkbox"] {
+  margin: 0;
+}
+
 input[type="search"],
 input[type="number"],
 button,
