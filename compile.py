@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -51,8 +52,14 @@ def infer_columns(card_files: list[Path]) -> list[tuple[str, str]]:
             else:
                 sqlite_type = SQLITE_TYPE_BY_PYTHON_TYPE.get(value_type, "TEXT")
         columns.append((key, sqlite_type))
-    for extra_name in ("packName", "packSeries", "imageUrl"):
-        columns.append((extra_name, "TEXT"))
+    columns.extend(
+        [
+            ("packName", "TEXT"),
+            ("packSeries", "TEXT"),
+            ("releaseDate", "DATE"),
+            ("imageUrl", "TEXT"),
+        ]
+    )
     return columns
 
 
@@ -82,7 +89,7 @@ def insert_cards(
     conn: sqlite3.Connection,
     card_files: list[Path],
     columns: list[tuple[str, str]],
-    set_metadata: dict[str, tuple[str | None, str | None]],
+    set_metadata: dict[str, tuple[str | None, str | None, date | None]],
 ) -> int:
     column_names = [name for name, _ in columns]
     placeholders = ", ".join("?" for _ in column_names)
@@ -91,7 +98,7 @@ def insert_cards(
     total = 0
     with conn:
         for path in card_files:
-            pack_name, pack_series = set_metadata.get(path.stem, (None, None))
+            pack_name, pack_series, release_date = set_metadata.get(path.stem, (None, None, None))
             with path.open("r", encoding="utf-8") as f:
                 cards = json.load(f)
             rows = []
@@ -106,6 +113,8 @@ def insert_cards(
                         values.append(pack_name)
                     elif name == "packSeries":
                         values.append(pack_series)
+                    elif name == "releaseDate":
+                        values.append(release_date.isoformat() if release_date is not None else None)
                     elif name == "imageUrl":
                         values.append(image_url)
                     else:
@@ -116,12 +125,25 @@ def insert_cards(
     return total
 
 
-def load_set_metadata(sets_path: Path) -> dict[str, tuple[str | None, str | None]]:
+def parse_release_date(value: Any) -> date | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value.replace("/", "-"))
+    except ValueError:
+        return None
+
+
+def load_set_metadata(sets_path: Path) -> dict[str, tuple[str | None, str | None, date | None]]:
     with sets_path.open("r", encoding="utf-8") as f:
         sets = json.load(f)
-    metadata: dict[str, tuple[str | None, str | None]] = {}
+    metadata: dict[str, tuple[str | None, str | None, date | None]] = {}
     for item in sets:
-        metadata[item["id"]] = (item.get("name"), item.get("series"))
+        metadata[item["id"]] = (
+            item.get("name"),
+            item.get("series"),
+            parse_release_date(item.get("releaseDate")),
+        )
     return metadata
 
 
