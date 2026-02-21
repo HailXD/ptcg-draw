@@ -161,6 +161,7 @@ function applyFilter() {
       return (
         pack.packName.toLowerCase().includes(q) ||
         pack.packSeries.toLowerCase().includes(q) ||
+        pack.packCode.toLowerCase().includes(q) ||
         pack.releaseDate.toLowerCase().includes(q)
       );
     });
