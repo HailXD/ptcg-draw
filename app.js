@@ -71,7 +71,7 @@ const elements = {
 };
 
 function packKey(pack) {
-  return `${pack.packName}\u0000${pack.packSeries}\u0000${pack.releaseDate}`;
+  return `${pack.packName}\u0000${pack.packSeries}\u0000${pack.releaseDate}\u0000${pack.packCode}`;
 }
 
 function setStatus(text, isError = false) {
@@ -94,6 +94,7 @@ function normalizePackRow(row) {
   return {
     packName: row.packName == null ? "" : String(row.packName),
     packSeries: row.packSeries == null ? "" : String(row.packSeries),
+    packCode: row.packCode == null ? "" : String(row.packCode),
     releaseDate: row.releaseDate == null ? "" : String(row.releaseDate),
     cardCount: Number(row.cardCount) || 0
   };
@@ -101,10 +102,10 @@ function normalizePackRow(row) {
 
 function loadPacks() {
   const rows = execRows(
-    `SELECT packName, packSeries, releaseDate, COUNT(*) AS cardCount
+    `SELECT packName, packSeries, packCode, releaseDate, COUNT(*) AS cardCount
      FROM cards
      WHERE packName IS NOT NULL
-     GROUP BY packName, packSeries, releaseDate
+     GROUP BY packName, packSeries, packCode, releaseDate
      ORDER BY releaseDate DESC, packName ASC`
   );
   state.packs = rows.map(normalizePackRow);
@@ -125,7 +126,7 @@ function renderPacks() {
 
     const meta = document.createElement("div");
     meta.className = "pack-meta";
-    meta.textContent = `${pack.packSeries} | ${pack.releaseDate} | ${pack.cardCount} cards`;
+    meta.textContent = `${pack.packSeries} | ${pack.packCode} | ${pack.releaseDate} | ${pack.cardCount} cards`;
 
     info.append(name, meta);
 
@@ -184,23 +185,24 @@ function buildPackGroups(pack) {
     return state.packCardGroups.get(key);
   }
   const rows = execRows(
-    `SELECT id, rarity
+    `SELECT id, rarity, number
      FROM cards
      WHERE packName = ?
        AND IFNULL(packSeries, '') = ?
+       AND IFNULL(packCode, '') = ?
        AND IFNULL(releaseDate, '') = ?
        AND rarity IS NOT NULL`,
-    [pack.packName, pack.packSeries, pack.releaseDate]
+    [pack.packName, pack.packSeries, pack.packCode, pack.releaseDate]
   );
   const groups = new Map();
   for (const row of rows) {
     const rarity = String(row.rarity);
-    const id = String(row.id);
+    const card = { id: String(row.id), number: row.number == null ? "" : String(row.number) };
     const list = groups.get(rarity);
     if (list) {
-      list.push(id);
+      list.push(card);
     } else {
-      groups.set(rarity, [id]);
+      groups.set(rarity, [card]);
     }
   }
   state.packCardGroups.set(key, groups);
@@ -238,6 +240,7 @@ function chooseRarity(compiledSlot) {
 
 function simulatePackDraw(quantity, groups, slotPools) {
   const counts = new Map();
+  const numberById = new Map();
   let totalCards = 0;
   for (let packIndex = 0; packIndex < quantity; packIndex += 1) {
     for (const slot of slotPools) {
@@ -252,12 +255,41 @@ function simulatePackDraw(quantity, groups, slotPools) {
       if (!cards || cards.length === 0) {
         continue;
       }
-      const id = cards[Math.floor(Math.random() * cards.length)];
-      counts.set(id, (counts.get(id) || 0) + 1);
+      const card = cards[Math.floor(Math.random() * cards.length)];
+      counts.set(card.id, (counts.get(card.id) || 0) + 1);
+      numberById.set(card.id, card.number);
       totalCards += 1;
     }
   }
-  return { counts, totalCards };
+  return { counts, numberById, totalCards };
+}
+
+function compareCardNumber(a, b) {
+  const splitParts = (value) => String(value).match(/\d+|\D+/g) || [];
+  const left = splitParts(a);
+  const right = splitParts(b);
+  const size = Math.max(left.length, right.length);
+  for (let i = 0; i < size; i += 1) {
+    const lp = left[i];
+    const rp = right[i];
+    if (lp == null) {
+      return -1;
+    }
+    if (rp == null) {
+      return 1;
+    }
+    const ln = Number(lp);
+    const rn = Number(rp);
+    const lIsNum = Number.isInteger(ln) && lp.trim() !== "";
+    const rIsNum = Number.isInteger(rn) && rp.trim() !== "";
+    if (lIsNum && rIsNum && ln !== rn) {
+      return ln - rn;
+    }
+    if (lp !== rp) {
+      return lp.localeCompare(rp);
+    }
+  }
+  return 0;
 }
 
 function buildResultText(resultEntries) {
@@ -265,9 +297,18 @@ function buildResultText(resultEntries) {
   for (const entry of resultEntries) {
     const { pack, quantity, draw } = entry;
     lines.push(`${pack.packName} | ${pack.packSeries} | ${pack.releaseDate} | opened ${quantity}`);
-    const sortedCards = [...draw.counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const sortedCards = [...draw.counts.entries()].sort((a, b) => {
+      const leftNumber = draw.numberById.get(a[0]) || "";
+      const rightNumber = draw.numberById.get(b[0]) || "";
+      const numberCmp = compareCardNumber(leftNumber, rightNumber);
+      if (numberCmp !== 0) {
+        return numberCmp;
+      }
+      return a[0].localeCompare(b[0]);
+    });
     for (const [id, count] of sortedCards) {
-      lines.push(`${id} x${count}`);
+      const number = draw.numberById.get(id) || "";
+      lines.push(`${count} ${pack.packCode} ${number}`.trim());
     }
     lines.push("");
   }
