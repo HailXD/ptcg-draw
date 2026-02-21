@@ -19,6 +19,7 @@ const elements = {
   copyBtn: document.getElementById("copyBtn"),
   statusText: document.getElementById("statusText"),
   packList: document.getElementById("packList"),
+  selectionText: document.getElementById("selectionText"),
   resultText: document.getElementById("resultText")
 };
 
@@ -198,12 +199,12 @@ function exportSelection() {
     quantity: entry.quantity
   }));
   const payload = { version: 1, packs: selected };
-  elements.resultText.value = JSON.stringify(payload);
+  elements.selectionText.value = JSON.stringify(payload);
   setStatus(`Exported ${selected.length} pack selections.`);
 }
 
 function importSelection() {
-  const raw = elements.resultText.value.trim();
+  const raw = elements.selectionText.value.trim();
   if (!raw) {
     setStatus("Textarea is empty. Paste exported selection JSON first.", true);
     return;

@@ -18,11 +18,19 @@
           <span>Draw Highest Rarity Same Card</span>
         </label>
         <button id="resetBtn" type="button">Reset Quantities</button>
-        <button id="exportBtn" type="button">Export Selection</button>
-        <button id="importBtn" type="button">Import Selection</button>
         <button id="openBtn" type="button">Open Selected Packs</button>
       </div>
       <p id="statusText" class="status">Loading database...</p>
+    </section>
+    <section class="panel selection-panel">
+      <div class="result-header">
+        <h2>Selection Import / Export</h2>
+        <div class="toolbar">
+          <button id="exportBtn" type="button">Export Selection</button>
+          <button id="importBtn" type="button">Import Selection</button>
+        </div>
+      </div>
+      <textarea id="selectionText" placeholder="Export selection JSON here, or paste selection JSON to import."></textarea>
     </section>
     <section class="panel pack-panel">
       <h2>Packs</h2>
@@ -33,7 +41,7 @@
         <h2>Results</h2>
         <button id="copyBtn" type="button">Copy Text</button>
       </div>
-      <textarea id="resultText" placeholder="Open packs to generate output, or paste exported selection JSON to import."></textarea>
+      <textarea id="resultText" placeholder="Open packs to generate output."></textarea>
     </section>
   </main>
   <script type="module" src="app.js"></script>

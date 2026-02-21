@@ -162,10 +162,17 @@ button:hover {
 
 textarea {
   width: 100%;
-  min-height: 300px;
   resize: vertical;
   padding: 10px;
   font: 13px/1.45 Consolas, "Courier New", monospace;
+}
+
+#selectionText {
+  min-height: 130px;
+}
+
+#resultText {
+  min-height: 300px;
 }
 
 @media (max-width: 720px) {
