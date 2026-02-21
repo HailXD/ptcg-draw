@@ -222,7 +222,35 @@ function renderPacks() {
       }
     });
 
-    row.append(info, quantityInput);
+    const controls = document.createElement("div");
+    controls.className = "pack-quantity-controls";
+
+    const add10Btn = document.createElement("button");
+    add10Btn.type = "button";
+    add10Btn.className = "pack-add-btn";
+    add10Btn.textContent = "+10";
+    add10Btn.addEventListener("click", () => {
+      const parsed = Number.parseInt(quantityInput.value, 10);
+      const current = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      const next = current + 10;
+      state.quantities.set(key, next);
+      quantityInput.value = String(next);
+    });
+
+    const add50Btn = document.createElement("button");
+    add50Btn.type = "button";
+    add50Btn.className = "pack-add-btn";
+    add50Btn.textContent = "+50";
+    add50Btn.addEventListener("click", () => {
+      const parsed = Number.parseInt(quantityInput.value, 10);
+      const current = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      const next = current + 50;
+      state.quantities.set(key, next);
+      quantityInput.value = String(next);
+    });
+
+    controls.append(quantityInput, add10Btn, add50Btn);
+    row.append(info, controls);
     fragment.append(row);
   }
 

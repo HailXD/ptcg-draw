@@ -143,6 +143,16 @@ button:hover {
   border-radius: 8px;
 }
 
+.pack-quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pack-add-btn {
+  padding: 6px 8px;
+}
+
 .pack-toolbar {
   justify-content: flex-end;
 }
@@ -191,5 +201,9 @@ textarea {
 
   .pack-row {
     grid-template-columns: 1fr;
+  }
+
+  .pack-quantity-controls {
+    justify-content: flex-end;
   }
 }
