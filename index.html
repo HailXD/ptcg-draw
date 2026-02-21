@@ -33,7 +33,15 @@
       <textarea id="selectionText" placeholder="Export selection JSON here, or paste selection JSON to import."></textarea>
     </section>
     <section class="panel pack-panel">
-      <h2>Packs</h2>
+      <div class="result-header">
+        <h2>Packs</h2>
+        <div class="toolbar pack-toolbar">
+          <button id="togglePagingBtn" type="button">Show All</button>
+          <button id="prevPageBtn" type="button">Prev</button>
+          <button id="nextPageBtn" type="button">Next</button>
+        </div>
+      </div>
+      <p id="pageInfo" class="status">Loading packs...</p>
       <div id="packList" class="pack-list"></div>
     </section>
     <section class="panel result-panel">

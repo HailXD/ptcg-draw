@@ -2,11 +2,22 @@ const API_BASE = "https://api-pearl-two-79.vercel.app";
 const PACKS_ENDPOINT = `${API_BASE}/api/packs`;
 const DRAW_ENDPOINT = `${API_BASE}/api/draw`;
 const RESULT_END_MARKER = "\n\n===\n";
+const DEFAULT_PACKS_LIMIT = 5;
+const PAGING_ENABLED_BY_DEFAULT = true;
 
 const state = {
   packs: [],
   filteredPacks: [],
-  quantities: new Map()
+  quantities: new Map(),
+  packByKey: new Map(),
+  pagination: {
+    enabled: PAGING_ENABLED_BY_DEFAULT,
+    limit: DEFAULT_PACKS_LIMIT,
+    page: 1,
+    count: 0,
+    total: 0,
+    totalPages: 1
+  }
 };
 
 const elements = {
@@ -19,6 +30,10 @@ const elements = {
   copyBtn: document.getElementById("copyBtn"),
   statusText: document.getElementById("statusText"),
   packList: document.getElementById("packList"),
+  pageInfo: document.getElementById("pageInfo"),
+  prevPageBtn: document.getElementById("prevPageBtn"),
+  nextPageBtn: document.getElementById("nextPageBtn"),
+  togglePagingBtn: document.getElementById("togglePagingBtn"),
   selectionText: document.getElementById("selectionText"),
   resultText: document.getElementById("resultText")
 };
@@ -42,6 +57,25 @@ function normalizePack(row) {
   };
 }
 
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseNonNegativeInt(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function packsUrl() {
+  const url = new URL(PACKS_ENDPOINT);
+  if (state.pagination.enabled) {
+    url.searchParams.set("limit", String(state.pagination.limit));
+    url.searchParams.set("page", String(state.pagination.page));
+  }
+  return url.toString();
+}
+
 async function fetchJson(url, options = undefined) {
   const response = await fetch(url, options);
   let body = null;
@@ -58,10 +92,85 @@ async function fetchJson(url, options = undefined) {
 }
 
 async function loadPacks() {
-  const payload = await fetchJson(PACKS_ENDPOINT);
+  const payload = await fetchJson(packsUrl());
   const rows = Array.isArray(payload?.packs) ? payload.packs : [];
   state.packs = rows.map(normalizePack);
+  for (const pack of state.packs) {
+    state.packByKey.set(packKey(pack), pack);
+  }
   state.filteredPacks = state.packs.slice();
+
+  if (!state.pagination.enabled) {
+    state.pagination.page = 1;
+    state.pagination.count = state.packs.length;
+    state.pagination.total = state.packs.length;
+    state.pagination.totalPages = 1;
+    return;
+  }
+
+  state.pagination.limit = parsePositiveInt(payload?.limit, state.pagination.limit);
+  state.pagination.page = parsePositiveInt(payload?.page, state.pagination.page);
+  state.pagination.count = parseNonNegativeInt(payload?.count, state.packs.length);
+  state.pagination.total = parseNonNegativeInt(payload?.total, state.packs.length);
+  state.pagination.totalPages = parsePositiveInt(
+    payload?.totalPages,
+    Math.max(1, Math.ceil(state.pagination.total / state.pagination.limit))
+  );
+}
+
+function updatePaginationUi() {
+  if (!elements.pageInfo || !elements.prevPageBtn || !elements.nextPageBtn || !elements.togglePagingBtn) {
+    return;
+  }
+
+  const visible = state.filteredPacks.length;
+  if (state.pagination.enabled) {
+    elements.pageInfo.textContent =
+      `Showing ${visible} of ${state.pagination.count} on page ${state.pagination.page}/${state.pagination.totalPages} (${state.pagination.total} total)`;
+  } else {
+    elements.pageInfo.textContent = `Showing ${visible} of ${state.packs.length} packs`;
+  }
+
+  elements.togglePagingBtn.textContent = state.pagination.enabled
+    ? "Show All"
+    : `Show ${state.pagination.limit}/Page`;
+
+  elements.prevPageBtn.disabled = !state.pagination.enabled || state.pagination.page <= 1;
+  elements.nextPageBtn.disabled =
+    !state.pagination.enabled || state.pagination.page >= state.pagination.totalPages;
+}
+
+function withPacksControlsDisabled(disabled) {
+  if (elements.togglePagingBtn) {
+    elements.togglePagingBtn.disabled = disabled;
+  }
+  if (elements.prevPageBtn) {
+    elements.prevPageBtn.disabled = disabled;
+  }
+  if (elements.nextPageBtn) {
+    elements.nextPageBtn.disabled = disabled;
+  }
+}
+
+async function reloadPacks(statusPrefix = "Loaded") {
+  withPacksControlsDisabled(true);
+  setStatus("Loading packs...");
+  try {
+    await loadPacks();
+    applyFilter();
+    if (state.pagination.enabled) {
+      setStatus(
+        `${statusPrefix} page ${state.pagination.page}/${state.pagination.totalPages} (${state.pagination.count}/${state.pagination.total} packs).`
+      );
+    } else {
+      setStatus(`${statusPrefix} ${state.packs.length} packs.`);
+    }
+  } catch (err) {
+    setStatus(`Load failed: ${String(err.message || err)}`, true);
+  } finally {
+    withPacksControlsDisabled(false);
+    updatePaginationUi();
+  }
 }
 
 function renderPacks() {
@@ -102,6 +211,7 @@ function renderPacks() {
 
   elements.packList.innerHTML = "";
   elements.packList.append(fragment);
+  updatePaginationUi();
 }
 
 function applyFilter() {
@@ -123,9 +233,12 @@ function applyFilter() {
 
 function getSelectedPacks() {
   const selected = [];
-  for (const pack of state.packs) {
-    const quantity = state.quantities.get(packKey(pack)) || 0;
+  for (const [key, quantity] of state.quantities) {
     if (quantity > 0) {
+      const pack = state.packByKey.get(key);
+      if (!pack) {
+        continue;
+      }
       selected.push({ ...pack, quantity });
     }
   }
@@ -196,6 +309,7 @@ function exportSelection() {
     packSeries: entry.packSeries,
     packCode: entry.packCode,
     releaseDate: entry.releaseDate,
+    cardCount: entry.cardCount,
     quantity: entry.quantity
   }));
   const payload = { version: 1, packs: selected };
@@ -224,28 +338,26 @@ function importSelection() {
     return;
   }
 
-  const validKeys = new Set(state.packs.map((pack) => packKey(pack)));
   state.quantities.clear();
   let imported = 0;
   for (const item of packs) {
     if (!item || typeof item !== "object") {
       continue;
     }
-    const pack = {
-      packName: item.packName == null ? "" : String(item.packName),
-      packSeries: item.packSeries == null ? "" : String(item.packSeries),
-      packCode: item.packCode == null ? "" : String(item.packCode),
-      releaseDate: item.releaseDate == null ? "" : String(item.releaseDate)
-    };
     const parsedQuantity = Number.parseInt(String(item.quantity ?? 0), 10);
     const quantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0 ? parsedQuantity : 0;
     if (quantity <= 0) {
       continue;
     }
-    const key = packKey(pack);
-    if (!validKeys.has(key)) {
-      continue;
-    }
+    const normalized = normalizePack({ ...item, cardCount: item.cardCount });
+    const key = packKey(normalized);
+    const existing = state.packByKey.get(key);
+    state.packByKey.set(
+      key,
+      existing
+        ? { ...existing, ...normalized, cardCount: existing.cardCount || normalized.cardCount }
+        : normalized
+    );
     state.quantities.set(key, quantity);
     imported += 1;
   }
@@ -253,14 +365,29 @@ function importSelection() {
   setStatus(`Imported ${imported} pack selections.`);
 }
 
-async function init() {
-  try {
-    await loadPacks();
-    renderPacks();
-    setStatus(`Loaded ${state.packs.length} packs from API.`);
-  } catch (err) {
-    setStatus(`Load failed: ${String(err.message || err)}`, true);
+async function goToPage(delta) {
+  if (!state.pagination.enabled) {
+    return;
   }
+  const nextPage = Math.min(
+    state.pagination.totalPages,
+    Math.max(1, state.pagination.page + delta)
+  );
+  if (nextPage === state.pagination.page) {
+    return;
+  }
+  state.pagination.page = nextPage;
+  await reloadPacks("Loaded");
+}
+
+async function togglePagination() {
+  state.pagination.enabled = !state.pagination.enabled;
+  state.pagination.page = 1;
+  await reloadPacks("Loaded");
+}
+
+async function init() {
+  await reloadPacks("Loaded");
 }
 
 elements.searchInput.addEventListener("input", applyFilter);
@@ -269,5 +396,8 @@ elements.copyBtn.addEventListener("click", copyResultText);
 elements.resetBtn.addEventListener("click", resetQuantities);
 elements.exportBtn.addEventListener("click", exportSelection);
 elements.importBtn.addEventListener("click", importSelection);
+elements.prevPageBtn?.addEventListener("click", () => void goToPage(-1));
+elements.nextPageBtn?.addEventListener("click", () => void goToPage(1));
+elements.togglePagingBtn?.addEventListener("click", () => void togglePagination());
 
 init();
