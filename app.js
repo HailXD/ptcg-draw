@@ -199,7 +199,7 @@ function buildPackGroups(pack) {
   const groups = new Map();
   for (const row of rows) {
     const rarity = String(row.rarity);
-    const card = buildCard(row, pack);
+    const card = buildCard(row);
     const list = groups.get(rarity);
     if (list) {
       list.push(card);
@@ -242,17 +242,47 @@ function addIfPresent(obj, key, value) {
   obj[key] = value;
 }
 
-function buildCardInfo(row, pack) {
-  const info = {};
-  const setInfo = {};
-  addIfPresent(setInfo, "code", pack.packCode);
-  addIfPresent(setInfo, "name", pack.packName);
-  addIfPresent(setInfo, "series", pack.packSeries);
-  addIfPresent(setInfo, "releaseDate", pack.releaseDate);
+function normalizeForLlm(value) {
+  if (Array.isArray(value)) {
+    const normalizedList = value
+      .map((item) => normalizeForLlm(item))
+      .filter((item) => item !== undefined);
+    if (normalizedList.length === 0) {
+      return undefined;
+    }
+    if (normalizedList.length === 1) {
+      return normalizedList[0];
+    }
+    return normalizedList;
+  }
+  if (value && typeof value === "object") {
+    const normalizedObject = {};
+    for (const [key, child] of Object.entries(value)) {
+      if (key === "convertedEnergyCost") {
+        continue;
+      }
+      const normalizedChild = normalizeForLlm(child);
+      if (normalizedChild === undefined) {
+        continue;
+      }
+      normalizedObject[key] = normalizedChild;
+    }
+    if (Object.keys(normalizedObject).length === 0) {
+      return undefined;
+    }
+    return normalizedObject;
+  }
+  if (value == null) {
+    return undefined;
+  }
+  if (typeof value === "string" && value.trim() === "") {
+    return undefined;
+  }
+  return value;
+}
 
-  addIfPresent(info, "id", row.id == null ? null : String(row.id));
-  addIfPresent(info, "set", setInfo);
-  addIfPresent(info, "number", row.number == null ? null : String(row.number));
+function buildCardInfo(row) {
+  const info = {};
   addIfPresent(info, "name", row.name == null ? null : String(row.name));
   addIfPresent(info, "supertype", row.supertype == null ? null : String(row.supertype));
   addIfPresent(info, "subtypes", parseJsonText(row.subtypes));
@@ -260,20 +290,16 @@ function buildCardInfo(row, pack) {
   addIfPresent(info, "types", parseJsonText(row.types));
   addIfPresent(info, "evolvesFrom", row.evolvesFrom == null ? null : String(row.evolvesFrom));
   addIfPresent(info, "evolvesTo", parseJsonText(row.evolvesTo));
-  addIfPresent(info, "rarity", row.rarity == null ? null : String(row.rarity));
-  addIfPresent(info, "regulationMark", row.regulationMark == null ? null : String(row.regulationMark));
   addIfPresent(info, "rules", parseJsonText(row.rules));
   addIfPresent(info, "abilities", parseJsonText(row.abilities));
   addIfPresent(info, "attacks", parseJsonText(row.attacks));
   addIfPresent(info, "weaknesses", parseJsonText(row.weaknesses));
   addIfPresent(info, "resistances", parseJsonText(row.resistances));
-  addIfPresent(info, "artist", row.artist == null ? null : String(row.artist));
-  addIfPresent(info, "imageUrl", row.imageUrl == null ? null : String(row.imageUrl));
-  return info;
+  return normalizeForLlm(info) || {};
 }
 
-function buildCard(row, pack) {
-  const info = buildCardInfo(row, pack);
+function buildCard(row) {
+  const info = buildCardInfo(row);
   return {
     id: row.id == null ? "" : String(row.id),
     number: row.number == null ? "" : String(row.number),
