@@ -237,6 +237,18 @@ function renderPacks() {
       quantityInput.value = String(next);
     });
 
+    const add30Btn = document.createElement("button");
+    add30Btn.type = "button";
+    add30Btn.className = "pack-add-btn";
+    add30Btn.textContent = "+30";
+    add30Btn.addEventListener("click", () => {
+      const parsed = Number.parseInt(quantityInput.value, 10);
+      const current = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      const next = current + 30;
+      state.quantities.set(key, next);
+      quantityInput.value = String(next);
+    });
+
     const add50Btn = document.createElement("button");
     add50Btn.type = "button";
     add50Btn.className = "pack-add-btn";
@@ -249,7 +261,7 @@ function renderPacks() {
       quantityInput.value = String(next);
     });
 
-    controls.append(quantityInput, add10Btn, add50Btn);
+    controls.append(quantityInput, add10Btn, add30Btn, add50Btn);
     row.append(info, controls);
     fragment.append(row);
   }
