@@ -10,6 +10,7 @@ const state = {
   filteredPacks: [],
   quantities: new Map(),
   packByKey: new Map(),
+  packsPageCache: new Map(),
   pagination: {
     enabled: PAGING_ENABLED_BY_DEFAULT,
     limit: DEFAULT_PACKS_LIMIT,
@@ -76,6 +77,13 @@ function packsUrl() {
   return url.toString();
 }
 
+function packsCacheKey() {
+  if (!state.pagination.enabled) {
+    return "all";
+  }
+  return `paged:${state.pagination.limit}:${state.pagination.page}`;
+}
+
 async function fetchJson(url, options = undefined) {
   const response = await fetch(url, options);
   let body = null;
@@ -91,8 +99,7 @@ async function fetchJson(url, options = undefined) {
   return body;
 }
 
-async function loadPacks() {
-  const payload = await fetchJson(packsUrl());
+function applyPacksPayload(payload) {
   const rows = Array.isArray(payload?.packs) ? payload.packs : [];
   state.packs = rows.map(normalizePack);
   for (const pack of state.packs) {
@@ -116,6 +123,16 @@ async function loadPacks() {
     payload?.totalPages,
     Math.max(1, Math.ceil(state.pagination.total / state.pagination.limit))
   );
+}
+
+async function loadPacks() {
+  const cacheKey = packsCacheKey();
+  let payload = state.packsPageCache.get(cacheKey);
+  if (!payload) {
+    payload = await fetchJson(packsUrl());
+    state.packsPageCache.set(cacheKey, payload);
+  }
+  applyPacksPayload(payload);
 }
 
 function updatePaginationUi() {
