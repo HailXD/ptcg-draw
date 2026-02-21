@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 CARDS_DIR = Path("pokemon-tcg-data/cards/en")
+SETS_PATH = Path("pokemon-tcg-data/sets/en.json")
 DB_PATH = Path("data/cards.sqlite")
 TABLE_NAME = "cards"
 EXCLUDED_KEYS = {
@@ -50,6 +51,8 @@ def infer_columns(card_files: list[Path]) -> list[tuple[str, str]]:
             else:
                 sqlite_type = SQLITE_TYPE_BY_PYTHON_TYPE.get(value_type, "TEXT")
         columns.append((key, sqlite_type))
+    for extra_name in ("packName", "packSeries", "imageUrl"):
+        columns.append((extra_name, "TEXT"))
     return columns
 
 
@@ -79,6 +82,7 @@ def insert_cards(
     conn: sqlite3.Connection,
     card_files: list[Path],
     columns: list[tuple[str, str]],
+    set_metadata: dict[str, tuple[str | None, str | None]],
 ) -> int:
     column_names = [name for name, _ in columns]
     placeholders = ", ".join("?" for _ in column_names)
@@ -87,23 +91,48 @@ def insert_cards(
     total = 0
     with conn:
         for path in card_files:
+            pack_name, pack_series = set_metadata.get(path.stem, (None, None))
             with path.open("r", encoding="utf-8") as f:
                 cards = json.load(f)
-            rows = [
-                tuple(encode_value(card.get(name)) for name in column_names) for card in cards
-            ]
+            rows = []
+            for card in cards:
+                image_url = None
+                images = card.get("images")
+                if isinstance(images, dict):
+                    image_url = images.get("small")
+                values: list[Any] = []
+                for name in column_names:
+                    if name == "packName":
+                        values.append(pack_name)
+                    elif name == "packSeries":
+                        values.append(pack_series)
+                    elif name == "imageUrl":
+                        values.append(image_url)
+                    else:
+                        values.append(encode_value(card.get(name)))
+                rows.append(tuple(values))
             conn.executemany(sql, rows)
             total += len(rows)
     return total
+
+
+def load_set_metadata(sets_path: Path) -> dict[str, tuple[str | None, str | None]]:
+    with sets_path.open("r", encoding="utf-8") as f:
+        sets = json.load(f)
+    metadata: dict[str, tuple[str | None, str | None]] = {}
+    for item in sets:
+        metadata[item["id"]] = (item.get("name"), item.get("series"))
+    return metadata
 
 
 def main() -> None:
     card_files = iter_card_files(CARDS_DIR)
     if not card_files:
         raise FileNotFoundError(f"No JSON files found in {CARDS_DIR}")
+    set_metadata = load_set_metadata(SETS_PATH)
     columns = infer_columns(card_files)
     conn = create_database(DB_PATH, columns)
-    total = insert_cards(conn, card_files, columns)
+    total = insert_cards(conn, card_files, columns, set_metadata)
     conn.execute("VACUUM")
     conn.close()
     print(f"Compiled {total} cards into {DB_PATH}")
