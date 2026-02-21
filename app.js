@@ -186,7 +186,8 @@ function buildPackGroups(pack) {
     return state.packCardGroups.get(key);
   }
   const rows = execRows(
-    `SELECT id, rarity, number
+    `SELECT id, rarity, number, name, supertype, subtypes, hp, types, evolvesFrom, evolvesTo,
+            rules, abilities, attacks, weaknesses, resistances, regulationMark, artist, imageUrl
      FROM cards
      WHERE packName = ?
        AND IFNULL(packSeries, '') = ?
@@ -198,7 +199,7 @@ function buildPackGroups(pack) {
   const groups = new Map();
   for (const row of rows) {
     const rarity = String(row.rarity);
-    const card = { id: String(row.id), number: row.number == null ? "" : String(row.number) };
+    const card = buildCard(row, pack);
     const list = groups.get(rarity);
     if (list) {
       list.push(card);
@@ -208,6 +209,76 @@ function buildPackGroups(pack) {
   }
   state.packCardGroups.set(key, groups);
   return groups;
+}
+
+function parseJsonText(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
+  const first = value[0];
+  if (first !== "[" && first !== "{") {
+    return null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch (err) {
+    return null;
+  }
+}
+
+function addIfPresent(obj, key, value) {
+  if (value == null) {
+    return;
+  }
+  if (typeof value === "string" && value.trim() === "") {
+    return;
+  }
+  if (Array.isArray(value) && value.length === 0) {
+    return;
+  }
+  if (typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0) {
+    return;
+  }
+  obj[key] = value;
+}
+
+function buildCardInfo(row, pack) {
+  const info = {};
+  const setInfo = {};
+  addIfPresent(setInfo, "code", pack.packCode);
+  addIfPresent(setInfo, "name", pack.packName);
+  addIfPresent(setInfo, "series", pack.packSeries);
+  addIfPresent(setInfo, "releaseDate", pack.releaseDate);
+
+  addIfPresent(info, "id", row.id == null ? null : String(row.id));
+  addIfPresent(info, "set", setInfo);
+  addIfPresent(info, "number", row.number == null ? null : String(row.number));
+  addIfPresent(info, "name", row.name == null ? null : String(row.name));
+  addIfPresent(info, "supertype", row.supertype == null ? null : String(row.supertype));
+  addIfPresent(info, "subtypes", parseJsonText(row.subtypes));
+  addIfPresent(info, "hp", row.hp == null ? null : String(row.hp));
+  addIfPresent(info, "types", parseJsonText(row.types));
+  addIfPresent(info, "evolvesFrom", row.evolvesFrom == null ? null : String(row.evolvesFrom));
+  addIfPresent(info, "evolvesTo", parseJsonText(row.evolvesTo));
+  addIfPresent(info, "rarity", row.rarity == null ? null : String(row.rarity));
+  addIfPresent(info, "regulationMark", row.regulationMark == null ? null : String(row.regulationMark));
+  addIfPresent(info, "rules", parseJsonText(row.rules));
+  addIfPresent(info, "abilities", parseJsonText(row.abilities));
+  addIfPresent(info, "attacks", parseJsonText(row.attacks));
+  addIfPresent(info, "weaknesses", parseJsonText(row.weaknesses));
+  addIfPresent(info, "resistances", parseJsonText(row.resistances));
+  addIfPresent(info, "artist", row.artist == null ? null : String(row.artist));
+  addIfPresent(info, "imageUrl", row.imageUrl == null ? null : String(row.imageUrl));
+  return info;
+}
+
+function buildCard(row, pack) {
+  const info = buildCardInfo(row, pack);
+  return {
+    id: row.id == null ? "" : String(row.id),
+    number: row.number == null ? "" : String(row.number),
+    infoJson: JSON.stringify(info)
+  };
 }
 
 function compileSlotPools(groups) {
@@ -241,7 +312,7 @@ function chooseRarity(compiledSlot) {
 
 function simulatePackDraw(quantity, groups, slotPools) {
   const counts = new Map();
-  const numberById = new Map();
+  const cardById = new Map();
   let totalCards = 0;
   for (let packIndex = 0; packIndex < quantity; packIndex += 1) {
     for (const slot of slotPools) {
@@ -258,11 +329,13 @@ function simulatePackDraw(quantity, groups, slotPools) {
       }
       const card = cards[Math.floor(Math.random() * cards.length)];
       counts.set(card.id, (counts.get(card.id) || 0) + 1);
-      numberById.set(card.id, card.number);
+      if (!cardById.has(card.id)) {
+        cardById.set(card.id, card);
+      }
       totalCards += 1;
     }
   }
-  return { counts, numberById, totalCards };
+  return { counts, cardById, totalCards };
 }
 
 function compareCardNumber(a, b) {
@@ -299,8 +372,10 @@ function buildResultText(resultEntries) {
     const { pack, quantity, draw } = entry;
     lines.push(`${pack.packName} | ${pack.packSeries} | ${pack.releaseDate} | opened ${quantity}`);
     const sortedCards = [...draw.counts.entries()].sort((a, b) => {
-      const leftNumber = draw.numberById.get(a[0]) || "";
-      const rightNumber = draw.numberById.get(b[0]) || "";
+      const leftCard = draw.cardById.get(a[0]);
+      const rightCard = draw.cardById.get(b[0]);
+      const leftNumber = leftCard ? leftCard.number : "";
+      const rightNumber = rightCard ? rightCard.number : "";
       const numberCmp = compareCardNumber(leftNumber, rightNumber);
       if (numberCmp !== 0) {
         return numberCmp;
@@ -308,8 +383,14 @@ function buildResultText(resultEntries) {
       return a[0].localeCompare(b[0]);
     });
     for (const [id, count] of sortedCards) {
-      const number = draw.numberById.get(id) || "";
-      lines.push(`${count} ${pack.packCode} ${number}`.trim());
+      const card = draw.cardById.get(id);
+      const parts = [String(count), pack.packCode];
+      if (card && card.number) {
+        parts.push(card.number);
+      }
+      const prefix = parts.join(" ");
+      const infoJson = card ? card.infoJson : "{}";
+      lines.push(`${prefix} # ${infoJson}`);
     }
     lines.push("");
   }
