@@ -63,6 +63,8 @@ const state = {
 const elements = {
   searchInput: document.getElementById("searchInput"),
   resetBtn: document.getElementById("resetBtn"),
+  exportBtn: document.getElementById("exportBtn"),
+  importBtn: document.getElementById("importBtn"),
   openBtn: document.getElementById("openBtn"),
   copyBtn: document.getElementById("copyBtn"),
   statusText: document.getElementById("statusText"),
@@ -498,6 +500,68 @@ function resetQuantities() {
   setStatus("Quantities reset.");
 }
 
+function exportSelection() {
+  const selected = getSelectedPacks().map((entry) => ({
+    packName: entry.pack.packName,
+    packSeries: entry.pack.packSeries,
+    packCode: entry.pack.packCode,
+    releaseDate: entry.pack.releaseDate,
+    quantity: entry.quantity
+  }));
+  const payload = { version: 1, packs: selected };
+  elements.resultText.value = JSON.stringify(payload);
+  setStatus(`Exported ${selected.length} pack selections.`);
+}
+
+function importSelection() {
+  const raw = elements.resultText.value.trim();
+  if (!raw) {
+    setStatus("Textarea is empty. Paste exported selection JSON first.", true);
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    setStatus("Invalid JSON in textarea.", true);
+    return;
+  }
+  const packs = Array.isArray(parsed?.packs) ? parsed.packs : [];
+  if (packs.length === 0) {
+    state.quantities.clear();
+    renderPacks();
+    setStatus("Imported 0 selections.");
+    return;
+  }
+  const validKeys = new Set(state.packs.map((pack) => packKey(pack)));
+  state.quantities.clear();
+  let imported = 0;
+  for (const item of packs) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const pack = {
+      packName: item.packName == null ? "" : String(item.packName),
+      packSeries: item.packSeries == null ? "" : String(item.packSeries),
+      packCode: item.packCode == null ? "" : String(item.packCode),
+      releaseDate: item.releaseDate == null ? "" : String(item.releaseDate)
+    };
+    const parsedQuantity = Number.parseInt(String(item.quantity ?? 0), 10);
+    const quantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0 ? parsedQuantity : 0;
+    if (quantity <= 0) {
+      continue;
+    }
+    const key = packKey(pack);
+    if (!validKeys.has(key)) {
+      continue;
+    }
+    state.quantities.set(key, quantity);
+    imported += 1;
+  }
+  renderPacks();
+  setStatus(`Imported ${imported} pack selections.`);
+}
+
 async function initDatabase() {
   const initSqlJs = window.initSqlJs;
   if (typeof initSqlJs !== "function") {
@@ -529,5 +593,7 @@ elements.searchInput.addEventListener("input", applyFilter);
 elements.openBtn.addEventListener("click", openSelectedPacks);
 elements.copyBtn.addEventListener("click", copyResultText);
 elements.resetBtn.addEventListener("click", resetQuantities);
+elements.exportBtn.addEventListener("click", exportSelection);
+elements.importBtn.addEventListener("click", importSelection);
 
 init();

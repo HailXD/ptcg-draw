@@ -14,6 +14,8 @@
       <div class="toolbar">
         <input id="searchInput" type="search" placeholder="Search pack name or series">
         <button id="resetBtn" type="button">Reset Quantities</button>
+        <button id="exportBtn" type="button">Export Selection</button>
+        <button id="importBtn" type="button">Import Selection</button>
         <button id="openBtn" type="button">Open Selected Packs</button>
       </div>
       <p id="statusText" class="status">Loading database...</p>
@@ -27,7 +29,7 @@
         <h2>Results</h2>
         <button id="copyBtn" type="button">Copy Text</button>
       </div>
-      <textarea id="resultText" readonly placeholder="Open packs to generate output."></textarea>
+      <textarea id="resultText" placeholder="Open packs to generate output, or paste exported selection JSON to import."></textarea>
     </section>
   </main>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
