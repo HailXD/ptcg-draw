@@ -56,6 +56,7 @@ def infer_columns(card_files: list[Path]) -> list[tuple[str, str]]:
         [
             ("packName", "TEXT"),
             ("packSeries", "TEXT"),
+            ("packCode", "TEXT"),
             ("releaseDate", "DATE"),
             ("imageUrl", "TEXT"),
         ]
@@ -89,7 +90,7 @@ def insert_cards(
     conn: sqlite3.Connection,
     card_files: list[Path],
     columns: list[tuple[str, str]],
-    set_metadata: dict[str, tuple[str | None, str | None, date | None]],
+    set_metadata: dict[str, tuple[str | None, str | None, str | None, date | None]],
 ) -> int:
     column_names = [name for name, _ in columns]
     placeholders = ", ".join("?" for _ in column_names)
@@ -98,7 +99,9 @@ def insert_cards(
     total = 0
     with conn:
         for path in card_files:
-            pack_name, pack_series, release_date = set_metadata.get(path.stem, (None, None, None))
+            pack_name, pack_series, pack_code, release_date = set_metadata.get(
+                path.stem, (None, None, None, None)
+            )
             with path.open("r", encoding="utf-8") as f:
                 cards = json.load(f)
             rows = []
@@ -113,6 +116,8 @@ def insert_cards(
                         values.append(pack_name)
                     elif name == "packSeries":
                         values.append(pack_series)
+                    elif name == "packCode":
+                        values.append(pack_code)
                     elif name == "releaseDate":
                         values.append(release_date.isoformat() if release_date is not None else None)
                     elif name == "imageUrl":
@@ -134,14 +139,17 @@ def parse_release_date(value: Any) -> date | None:
         return None
 
 
-def load_set_metadata(sets_path: Path) -> dict[str, tuple[str | None, str | None, date | None]]:
+def load_set_metadata(
+    sets_path: Path,
+) -> dict[str, tuple[str | None, str | None, str | None, date | None]]:
     with sets_path.open("r", encoding="utf-8") as f:
         sets = json.load(f)
-    metadata: dict[str, tuple[str | None, str | None, date | None]] = {}
+    metadata: dict[str, tuple[str | None, str | None, str | None, date | None]] = {}
     for item in sets:
         metadata[item["id"]] = (
             item.get("name"),
             item.get("series"),
+            item.get("ptcgoCode"),
             parse_release_date(item.get("releaseDate")),
         )
     return metadata
