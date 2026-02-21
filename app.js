@@ -242,6 +242,36 @@ function addIfPresent(obj, key, value) {
   obj[key] = value;
 }
 
+function simplifyWeaknesses(value) {
+  if (Array.isArray(value)) {
+    const types = value
+      .map((item) => {
+        if (item && typeof item === "object" && typeof item.type === "string") {
+          return item.type;
+        }
+        if (typeof item === "string") {
+          return item;
+        }
+        return "";
+      })
+      .filter((item) => item !== "");
+    if (types.length === 0) {
+      return undefined;
+    }
+    if (types.length === 1) {
+      return types[0];
+    }
+    return types;
+  }
+  if (value && typeof value === "object" && typeof value.type === "string") {
+    return value.type;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    return value;
+  }
+  return undefined;
+}
+
 function normalizeForLlm(value) {
   if (Array.isArray(value)) {
     const normalizedList = value
@@ -293,7 +323,7 @@ function buildCardInfo(row) {
   addIfPresent(info, "rules", parseJsonText(row.rules));
   addIfPresent(info, "abilities", parseJsonText(row.abilities));
   addIfPresent(info, "attacks", parseJsonText(row.attacks));
-  addIfPresent(info, "weaknesses", parseJsonText(row.weaknesses));
+  addIfPresent(info, "weaknesses", simplifyWeaknesses(parseJsonText(row.weaknesses)));
   addIfPresent(info, "resistances", parseJsonText(row.resistances));
   return normalizeForLlm(info) || {};
 }
