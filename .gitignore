@@ -1,1 +1,4 @@
 *.pyc
+api
+cards-database
+pokemon-tcg-data
