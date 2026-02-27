@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 CARDS_DIR = Path("pokemon-tcg-data/cards/en")
-SETS_PATH = Path("pokemon-tcg-data/sets/en.json")
+SETS_PATH = Path("pokemon-tcg-data/sets/en2.json")
 DB_PATH = Path("api/cards.sqlite")
 TABLE_NAME = "cards"
 EXCLUDED_KEYS = {
