@@ -333,9 +333,11 @@ function getSelectedPacks() {
 }
 
 function getSelectionPayload() {
+  const highest = Boolean(elements.drawHighestRaritySameCard?.checked);
   return {
     seed: ensureSeed(),
-    drawHighestRaritySameCard: Boolean(elements.drawHighestRaritySameCard?.checked),
+    highest,
+    drawHighestRaritySameCard: highest,
     packs: getSelectedPacks()
   };
 }
@@ -398,7 +400,7 @@ function resetQuantities() {
 
 function exportSelection() {
   const payload = getSelectionPayload();
-  elements.selectionText.value = JSON.stringify(payload, null, 2);
+  elements.selectionText.value = JSON.stringify(payload);
   setStatus(`Exported ${Object.keys(payload.packs).length} pack selections.`);
 }
 
@@ -435,7 +437,9 @@ async function importSelection() {
     setSeed(seed);
   }
   if (elements.drawHighestRaritySameCard) {
-    elements.drawHighestRaritySameCard.checked = Boolean(parsed?.drawHighestRaritySameCard);
+    elements.drawHighestRaritySameCard.checked = Boolean(
+      parsed?.highest ?? parsed?.drawHighestRaritySameCard
+    );
   }
   const entries = getImportedEntries(parsed);
   if (entries.length === 0) {

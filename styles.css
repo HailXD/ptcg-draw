@@ -58,6 +58,15 @@ h2 {
   gap: 8px;
 }
 
+.top-toolbar > * {
+  flex: 1 1 0;
+}
+
+.top-toolbar button,
+.top-toolbar .toggle {
+  width: 100%;
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;
@@ -67,6 +76,10 @@ h2 {
   border-radius: 8px;
   background: var(--panel-2);
   color: var(--text);
+}
+
+.top-toolbar .toggle {
+  justify-content: center;
 }
 
 .toggle input[type="checkbox"] {
