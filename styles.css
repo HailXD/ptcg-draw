@@ -181,11 +181,18 @@ button:hover {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 8px;
+  align-items: flex-start;
 }
 
 .seed-field span {
   color: var(--muted);
   font-size: 13px;
+}
+
+#seedInput {
+  flex: 0 1 320px;
+  width: min(320px, 100%);
+  min-width: 0;
 }
 
 textarea {

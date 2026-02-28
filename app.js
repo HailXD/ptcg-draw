@@ -507,7 +507,7 @@ async function togglePagination() {
 }
 
 async function init() {
-  ensureSeed();
+  setSeed(generateSeed());
   await reloadPacks("Loaded");
 }
 
