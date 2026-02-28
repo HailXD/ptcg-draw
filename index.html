@@ -21,20 +21,6 @@
       </div>
       <p id="statusText" class="status">Loading database...</p>
     </section>
-    <section class="panel selection-panel">
-      <div class="result-header">
-        <h2>Selection Import / Export</h2>
-        <div class="toolbar">
-          <button id="exportBtn" type="button">Export Selection</button>
-          <button id="importBtn" type="button">Import Selection</button>
-        </div>
-      </div>
-      <label class="seed-field" for="seedInput">
-        <span>Seed</span>
-        <input id="seedInput" type="text" placeholder="Seed used for export, import, and draw" autocomplete="off" spellcheck="false">
-      </label>
-      <textarea id="selectionText" placeholder="Export selection JSON here, or paste selection JSON to import."></textarea>
-    </section>
     <section class="panel pack-panel">
       <div class="result-header">
         <h2>Packs</h2>
@@ -53,6 +39,20 @@
         <button id="copyBtn" type="button">Copy Text</button>
       </div>
       <textarea id="resultText" placeholder="Open packs to generate output." autocomplete="off"></textarea>
+    </section>
+    <section class="panel selection-panel">
+      <div class="result-header">
+        <h2>Selection Import / Export</h2>
+        <div class="toolbar">
+          <button id="exportBtn" type="button">Export Selection</button>
+          <button id="importBtn" type="button">Import Selection</button>
+        </div>
+      </div>
+      <label class="seed-field" for="seedInput">
+        <span>Seed</span>
+        <input id="seedInput" type="text" placeholder="Seed used for export, import, and draw" autocomplete="off" spellcheck="false">
+      </label>
+      <textarea id="selectionText" placeholder="Export selection JSON here, or paste selection JSON to import."></textarea>
     </section>
   </main>
   <script type="module" src="app.js"></script>
