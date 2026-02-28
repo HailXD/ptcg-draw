@@ -6,11 +6,13 @@ const DEFAULT_PACKS_LIMIT = 5;
 const PAGING_ENABLED_BY_DEFAULT = true;
 
 const state = {
+  seed: "",
   packs: [],
   filteredPacks: [],
   quantities: new Map(),
   packByKey: new Map(),
   packsPageCache: new Map(),
+  packLookupLoaded: false,
   pagination: {
     enabled: PAGING_ENABLED_BY_DEFAULT,
     limit: DEFAULT_PACKS_LIMIT,
@@ -27,6 +29,7 @@ const elements = {
   exportBtn: document.getElementById("exportBtn"),
   importBtn: document.getElementById("importBtn"),
   openBtn: document.getElementById("openBtn"),
+  seedInput: document.getElementById("seedInput"),
   drawHighestRaritySameCard: document.getElementById("drawHighestRaritySameCard"),
   copyBtn: document.getElementById("copyBtn"),
   statusText: document.getElementById("statusText"),
@@ -40,7 +43,7 @@ const elements = {
 };
 
 function packKey(pack) {
-  return `${pack.packName}\u0000${pack.packSeries}\u0000${pack.releaseDate}\u0000${pack.packCode}`;
+  return pack.packName;
 }
 
 function setStatus(text, isError = false) {
@@ -56,6 +59,41 @@ function normalizePack(row) {
     releaseDate: row.releaseDate == null ? "" : String(row.releaseDate),
     cardCount: Number(row.cardCount) || 0
   };
+}
+
+function cachePackLookup(rows) {
+  for (const row of rows) {
+    const pack = normalizePack(row);
+    state.packByKey.set(packKey(pack), pack);
+  }
+}
+
+function generateSeed() {
+  let x = "";
+  let n = Math.floor(Date.now() / 10);
+  while (n > 0) {
+    x = String.fromCharCode(97 + (n % 26)) + x;
+    n = Math.floor(n / 26);
+  }
+  return x || "a";
+}
+
+function setSeed(value) {
+  state.seed = String(value ?? "").trim();
+  if (elements.seedInput && elements.seedInput.value !== state.seed) {
+    elements.seedInput.value = state.seed;
+  }
+}
+
+function ensureSeed() {
+  const current = elements.seedInput ? elements.seedInput.value.trim() : state.seed;
+  if (current) {
+    setSeed(current);
+    return current;
+  }
+  const seed = generateSeed();
+  setSeed(seed);
+  return seed;
 }
 
 function parsePositiveInt(value, fallback) {
@@ -102,12 +140,11 @@ async function fetchJson(url, options = undefined) {
 function applyPacksPayload(payload) {
   const rows = Array.isArray(payload?.packs) ? payload.packs : [];
   state.packs = rows.map(normalizePack);
-  for (const pack of state.packs) {
-    state.packByKey.set(packKey(pack), pack);
-  }
+  cachePackLookup(rows);
   state.filteredPacks = state.packs.slice();
 
   if (!state.pagination.enabled) {
+    state.packLookupLoaded = true;
     state.pagination.page = 1;
     state.pagination.count = state.packs.length;
     state.pagination.total = state.packs.length;
@@ -133,6 +170,20 @@ async function loadPacks() {
     state.packsPageCache.set(cacheKey, payload);
   }
   applyPacksPayload(payload);
+}
+
+async function ensurePackLookup() {
+  if (state.packLookupLoaded) {
+    return;
+  }
+  let payload = state.packsPageCache.get("all");
+  if (!payload) {
+    payload = await fetchJson(PACKS_ENDPOINT);
+    state.packsPageCache.set("all", payload);
+  }
+  const rows = Array.isArray(payload?.packs) ? payload.packs : [];
+  cachePackLookup(rows);
+  state.packLookupLoaded = true;
 }
 
 function updatePaginationUi() {
@@ -289,17 +340,20 @@ function applyFilter() {
 }
 
 function getSelectedPacks() {
-  const selected = [];
+  const selected = {};
   for (const [key, quantity] of state.quantities) {
     if (quantity > 0) {
-      const pack = state.packByKey.get(key);
-      if (!pack) {
-        continue;
-      }
-      selected.push({ ...pack, quantity });
+      selected[key] = quantity;
     }
   }
   return selected;
+}
+
+function getExportPayload() {
+  return {
+    seed: ensureSeed(),
+    packs: getSelectedPacks()
+  };
 }
 
 function withResultEndMarker(value) {
@@ -311,8 +365,8 @@ function withResultEndMarker(value) {
 }
 
 async function openSelectedPacks() {
-  const selected = getSelectedPacks();
-  if (selected.length === 0) {
+  const exportInfo = getExportPayload();
+  if (Object.keys(exportInfo.packs).length === 0) {
     setStatus("Select at least one pack quantity.", true);
     return;
   }
@@ -324,7 +378,9 @@ async function openSelectedPacks() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        packs: selected,
+        packs: exportInfo.packs,
+        seed: exportInfo.seed,
+        exportInfo,
         drawHighestRaritySameCard: Boolean(elements.drawHighestRaritySameCard?.checked)
       })
     });
@@ -332,7 +388,8 @@ async function openSelectedPacks() {
     elements.resultText.value = withResultEndMarker(resultText);
     const packCount = Number(payload?.packCount) || 0;
     const cardCount = Number(payload?.cardCount) || 0;
-    setStatus(`Opened ${packCount} packs and drew ${cardCount} cards.`);
+    const seed = typeof payload?.seed === "string" && payload.seed ? payload.seed : exportInfo.seed;
+    setStatus(`Opened ${packCount} packs and drew ${cardCount} cards. Seed: ${seed}`);
   } catch (err) {
     setStatus(String(err.message || err), true);
   } finally {
@@ -361,20 +418,23 @@ function resetQuantities() {
 }
 
 function exportSelection() {
-  const selected = getSelectedPacks().map((entry) => ({
-    packName: entry.packName,
-    packSeries: entry.packSeries,
-    packCode: entry.packCode,
-    releaseDate: entry.releaseDate,
-    cardCount: entry.cardCount,
-    quantity: entry.quantity
-  }));
-  const payload = { version: 1, packs: selected };
+  const payload = getExportPayload();
   elements.selectionText.value = JSON.stringify(payload);
-  setStatus(`Exported ${selected.length} pack selections.`);
+  setStatus(`Exported ${Object.keys(payload.packs).length} pack selections.`);
 }
 
-function importSelection() {
+function getImportedEntries(parsed) {
+  const source = Array.isArray(parsed) ? parsed : parsed?.packs;
+  if (Array.isArray(source)) {
+    return source.map((item) => [item?.packName, item?.quantity]);
+  }
+  if (source && typeof source === "object") {
+    return Object.entries(source);
+  }
+  return [];
+}
+
+async function importSelection() {
   const raw = elements.selectionText.value.trim();
   if (!raw) {
     setStatus("Textarea is empty. Paste exported selection JSON first.", true);
@@ -387,35 +447,38 @@ function importSelection() {
     setStatus("Invalid JSON in textarea.", true);
     return;
   }
-  const packs = Array.isArray(parsed?.packs) ? parsed.packs : [];
-  if (packs.length === 0) {
+  const seed = typeof parsed?.seed === "string" ? parsed.seed.trim() : "";
+  if (seed) {
+    setSeed(seed);
+  }
+  const entries = getImportedEntries(parsed);
+  if (entries.length === 0) {
     state.quantities.clear();
     renderPacks();
     setStatus("Imported 0 selections.");
     return;
   }
 
+  try {
+    await ensurePackLookup();
+  } catch (err) {
+    setStatus(`Import lookup failed: ${String(err.message || err)}`, true);
+    return;
+  }
+
   state.quantities.clear();
   let imported = 0;
-  for (const item of packs) {
-    if (!item || typeof item !== "object") {
+  for (const [packNameValue, quantityValue] of entries) {
+    const packName = String(packNameValue ?? "").trim();
+    if (!packName || !state.packByKey.has(packName)) {
       continue;
     }
-    const parsedQuantity = Number.parseInt(String(item.quantity ?? 0), 10);
+    const parsedQuantity = Number.parseInt(String(quantityValue ?? 0), 10);
     const quantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0 ? parsedQuantity : 0;
     if (quantity <= 0) {
       continue;
     }
-    const normalized = normalizePack({ ...item, cardCount: item.cardCount });
-    const key = packKey(normalized);
-    const existing = state.packByKey.get(key);
-    state.packByKey.set(
-      key,
-      existing
-        ? { ...existing, ...normalized, cardCount: existing.cardCount || normalized.cardCount }
-        : normalized
-    );
-    state.quantities.set(key, quantity);
+    state.quantities.set(packName, quantity);
     imported += 1;
   }
   renderPacks();
@@ -444,6 +507,7 @@ async function togglePagination() {
 }
 
 async function init() {
+  ensureSeed();
   await reloadPacks("Loaded");
 }
 
@@ -452,7 +516,10 @@ elements.openBtn.addEventListener("click", openSelectedPacks);
 elements.copyBtn.addEventListener("click", copyResultText);
 elements.resetBtn.addEventListener("click", resetQuantities);
 elements.exportBtn.addEventListener("click", exportSelection);
-elements.importBtn.addEventListener("click", importSelection);
+elements.importBtn.addEventListener("click", () => void importSelection());
+elements.seedInput?.addEventListener("input", () => {
+  state.seed = elements.seedInput.value.trim();
+});
 elements.prevPageBtn?.addEventListener("click", () => void goToPage(-1));
 elements.nextPageBtn?.addEventListener("click", () => void goToPage(1));
 elements.togglePagingBtn?.addEventListener("click", () => void togglePagination());
