@@ -337,7 +337,6 @@ function getSelectionPayload() {
   return {
     seed: ensureSeed(),
     highest,
-    drawHighestRaritySameCard: highest,
     packs: getSelectedPacks()
   };
 }
