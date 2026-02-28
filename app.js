@@ -24,7 +24,6 @@ const state = {
 };
 
 const elements = {
-  searchInput: document.getElementById("searchInput"),
   resetBtn: document.getElementById("resetBtn"),
   exportBtn: document.getElementById("exportBtn"),
   importBtn: document.getElementById("importBtn"),
@@ -225,7 +224,8 @@ async function reloadPacks(statusPrefix = "Loaded") {
   setStatus("Loading packs...");
   try {
     await loadPacks();
-    applyFilter();
+    state.filteredPacks = state.packs.slice();
+    renderPacks();
     if (state.pagination.enabled) {
       setStatus(
         `${statusPrefix} page ${state.pagination.page}/${state.pagination.totalPages} (${state.pagination.count}/${state.pagination.total} packs).`
@@ -320,23 +320,6 @@ function renderPacks() {
   elements.packList.innerHTML = "";
   elements.packList.append(fragment);
   updatePaginationUi();
-}
-
-function applyFilter() {
-  const q = elements.searchInput.value.trim().toLowerCase();
-  if (!q) {
-    state.filteredPacks = state.packs.slice();
-  } else {
-    state.filteredPacks = state.packs.filter((pack) => {
-      return (
-        pack.packName.toLowerCase().includes(q) ||
-        pack.packSeries.toLowerCase().includes(q) ||
-        pack.packCode.toLowerCase().includes(q) ||
-        pack.releaseDate.toLowerCase().includes(q)
-      );
-    });
-  }
-  renderPacks();
 }
 
 function getSelectedPacks() {
@@ -514,7 +497,6 @@ async function init() {
   await reloadPacks("Loaded");
 }
 
-elements.searchInput.addEventListener("input", applyFilter);
 elements.openBtn.addEventListener("click", openSelectedPacks);
 elements.copyBtn.addEventListener("click", copyResultText);
 elements.resetBtn.addEventListener("click", resetQuantities);
