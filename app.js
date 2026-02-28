@@ -349,6 +349,10 @@ function withResultEndMarker(value) {
   return `${text}${RESULT_END_MARKER}`;
 }
 
+function clearResultText() {
+  elements.resultText.value = "";
+}
+
 async function openSelectedPacks() {
   const payload = getSelectionPayload();
   if (Object.keys(payload.packs).length === 0) {
@@ -497,6 +501,7 @@ async function togglePagination() {
 
 async function init() {
   setSeed(generateSeed());
+  clearResultText();
   await reloadPacks("Loaded");
 }
 
@@ -511,5 +516,6 @@ elements.seedInput?.addEventListener("input", () => {
 elements.prevPageBtn?.addEventListener("click", () => void goToPage(-1));
 elements.nextPageBtn?.addEventListener("click", () => void goToPage(1));
 elements.togglePagingBtn?.addEventListener("click", () => void togglePagination());
+window.addEventListener("pageshow", clearResultText);
 
 init();
