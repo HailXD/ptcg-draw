@@ -193,6 +193,9 @@ button:hover {
   flex: 0 1 320px;
   width: min(320px, 100%);
   min-width: 0;
+  padding: 1px 4px;
+  line-height: 1.2;
+  height: auto;
 }
 
 textarea {
