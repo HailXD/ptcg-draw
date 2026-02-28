@@ -349,9 +349,10 @@ function getSelectedPacks() {
   return selected;
 }
 
-function getExportPayload() {
+function getSelectionPayload() {
   return {
     seed: ensureSeed(),
+    drawHighestRaritySameCard: Boolean(elements.drawHighestRaritySameCard?.checked),
     packs: getSelectedPacks()
   };
 }
@@ -365,8 +366,8 @@ function withResultEndMarker(value) {
 }
 
 async function openSelectedPacks() {
-  const exportInfo = getExportPayload();
-  if (Object.keys(exportInfo.packs).length === 0) {
+  const payload = getSelectionPayload();
+  if (Object.keys(payload.packs).length === 0) {
     setStatus("Select at least one pack quantity.", true);
     return;
   }
@@ -374,21 +375,16 @@ async function openSelectedPacks() {
   elements.openBtn.disabled = true;
   setStatus("Requesting draw...");
   try {
-    const payload = await fetchJson(DRAW_ENDPOINT, {
+    const response = await fetchJson(DRAW_ENDPOINT, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        packs: exportInfo.packs,
-        seed: exportInfo.seed,
-        exportInfo,
-        drawHighestRaritySameCard: Boolean(elements.drawHighestRaritySameCard?.checked)
-      })
+      body: JSON.stringify(payload)
     });
-    const resultText = payload && typeof payload.text === "string" ? payload.text : "";
+    const resultText = response && typeof response.text === "string" ? response.text : "";
     elements.resultText.value = withResultEndMarker(resultText);
-    const packCount = Number(payload?.packCount) || 0;
-    const cardCount = Number(payload?.cardCount) || 0;
-    const seed = typeof payload?.seed === "string" && payload.seed ? payload.seed : exportInfo.seed;
+    const packCount = Number(response?.packCount) || 0;
+    const cardCount = Number(response?.cardCount) || 0;
+    const seed = typeof response?.seed === "string" && response.seed ? response.seed : payload.seed;
     setStatus(`Opened ${packCount} packs and drew ${cardCount} cards. Seed: ${seed}`);
   } catch (err) {
     setStatus(String(err.message || err), true);
@@ -418,8 +414,8 @@ function resetQuantities() {
 }
 
 function exportSelection() {
-  const payload = getExportPayload();
-  elements.selectionText.value = JSON.stringify(payload);
+  const payload = getSelectionPayload();
+  elements.selectionText.value = JSON.stringify(payload, null, 2);
   setStatus(`Exported ${Object.keys(payload.packs).length} pack selections.`);
 }
 
@@ -440,9 +436,13 @@ async function importSelection() {
     setStatus("Textarea is empty. Paste exported selection JSON first.", true);
     return;
   }
+  const normalizedRaw = raw
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/, "");
   let parsed;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(normalizedRaw);
   } catch (err) {
     setStatus("Invalid JSON in textarea.", true);
     return;
@@ -450,6 +450,9 @@ async function importSelection() {
   const seed = typeof parsed?.seed === "string" ? parsed.seed.trim() : "";
   if (seed) {
     setSeed(seed);
+  }
+  if (elements.drawHighestRaritySameCard) {
+    elements.drawHighestRaritySameCard.checked = Boolean(parsed?.drawHighestRaritySameCard);
   }
   const entries = getImportedEntries(parsed);
   if (entries.length === 0) {
