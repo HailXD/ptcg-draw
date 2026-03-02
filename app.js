@@ -7,6 +7,7 @@ const PAGING_ENABLED_BY_DEFAULT = true;
 
 const state = {
   seed: "",
+  rawResultText: "",
   packs: [],
   filteredPacks: [],
   quantities: new Map(),
@@ -30,6 +31,8 @@ const elements = {
   openBtn: document.getElementById("openBtn"),
   seedInput: document.getElementById("seedInput"),
   drawHighestRaritySameCard: document.getElementById("drawHighestRaritySameCard"),
+  drawFour: document.getElementById("drawFour"),
+  godDraw: document.getElementById("godDraw"),
   copyBtn: document.getElementById("copyBtn"),
   statusText: document.getElementById("statusText"),
   packList: document.getElementById("packList"),
@@ -334,9 +337,13 @@ function getSelectedPacks() {
 
 function getSelectionPayload() {
   const highest = Boolean(elements.drawHighestRaritySameCard?.checked);
+  const draw4 = Boolean(elements.drawFour?.checked);
+  const godDraw = Boolean(elements.godDraw?.checked);
   return {
     seed: ensureSeed(),
     highest,
+    draw4,
+    godDraw,
     packs: getSelectedPacks()
   };
 }
@@ -349,8 +356,30 @@ function withResultEndMarker(value) {
   return `${text}${RESULT_END_MARKER}`;
 }
 
+function getDisplayResultText() {
+  const text = String(state.rawResultText ?? "");
+  if (!Boolean(elements.drawFour?.checked) || !text) {
+    return text;
+  }
+  return text
+    .split("\n")
+    .map((line) => {
+      if (!line.includes(" # ")) {
+        return line;
+      }
+      return line.replace(/^\d+/, "4");
+    })
+    .join("\n");
+}
+
+function renderResultText() {
+  const text = getDisplayResultText();
+  elements.resultText.value = text ? withResultEndMarker(text) : "";
+}
+
 function clearResultText() {
-  elements.resultText.value = "";
+  state.rawResultText = "";
+  renderResultText();
 }
 
 async function openSelectedPacks() {
@@ -369,7 +398,8 @@ async function openSelectedPacks() {
       body: JSON.stringify(payload)
     });
     const resultText = response && typeof response.text === "string" ? response.text : "";
-    elements.resultText.value = withResultEndMarker(resultText);
+    state.rawResultText = resultText;
+    renderResultText();
     const packCount = Number(response?.packCount) || 0;
     const cardCount = Number(response?.cardCount) || 0;
     const seed = typeof response?.seed === "string" && response.seed ? response.seed : payload.seed;
@@ -444,6 +474,15 @@ async function importSelection() {
       parsed?.highest ?? parsed?.drawHighestRaritySameCard
     );
   }
+  if (elements.drawFour) {
+    elements.drawFour.checked = Boolean(parsed?.draw4 ?? parsed?.drawFour);
+  }
+  if (elements.godDraw) {
+    elements.godDraw.checked = Boolean(
+      parsed?.godDraw ?? parsed?.god_draw ?? parsed?.god
+    );
+  }
+  renderResultText();
   const entries = getImportedEntries(parsed);
   if (entries.length === 0) {
     state.quantities.clear();
@@ -513,6 +552,7 @@ elements.importBtn.addEventListener("click", () => void importSelection());
 elements.seedInput?.addEventListener("input", () => {
   state.seed = elements.seedInput.value.trim();
 });
+elements.drawFour?.addEventListener("change", renderResultText);
 elements.prevPageBtn?.addEventListener("click", () => void goToPage(-1));
 elements.nextPageBtn?.addEventListener("click", () => void goToPage(1));
 elements.togglePagingBtn?.addEventListener("click", () => void togglePagination());
