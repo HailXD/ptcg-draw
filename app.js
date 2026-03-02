@@ -279,6 +279,18 @@ function renderPacks() {
     const controls = document.createElement("div");
     controls.className = "pack-quantity-controls";
 
+    const add1Btn = document.createElement("button");
+    add1Btn.type = "button";
+    add1Btn.className = "pack-add-btn";
+    add1Btn.textContent = "+1";
+    add1Btn.addEventListener("click", () => {
+      const parsed = Number.parseInt(quantityInput.value, 10);
+      const current = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      const next = current + 1;
+      state.quantities.set(key, next);
+      quantityInput.value = String(next);
+    });
+
     const add10Btn = document.createElement("button");
     add10Btn.type = "button";
     add10Btn.className = "pack-add-btn";
@@ -315,7 +327,7 @@ function renderPacks() {
       quantityInput.value = String(next);
     });
 
-    controls.append(quantityInput, add10Btn, add30Btn, add50Btn);
+    controls.append(quantityInput, add1Btn, add10Btn, add30Btn, add50Btn);
     row.append(info, controls);
     fragment.append(row);
   }
