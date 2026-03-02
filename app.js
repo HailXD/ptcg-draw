@@ -1,7 +1,7 @@
 const API_BASE = "https://api-pearl-two-79.vercel.app";
 const PACKS_ENDPOINT = `${API_BASE}/api/packs`;
 const DRAW_ENDPOINT = `${API_BASE}/api/draw`;
-const RESULT_END_MARKER = "\n\n===\n";
+const RESULT_END_MARKER = "\n\n===\nDECK REQUEST:\n";
 const DEFAULT_PACKS_LIMIT = 5;
 const PAGING_ENABLED_BY_DEFAULT = true;
 
