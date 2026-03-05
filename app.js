@@ -1,13 +1,17 @@
 const API_BASE = "https://api-pearl-two-79.vercel.app";
 const PACKS_ENDPOINT = `${API_BASE}/api/packs`;
 const DRAW_ENDPOINT = `${API_BASE}/api/draw`;
+const DECK_DRAW_ENDPOINTS = [`${API_BASE}/api/deck-draw`, `${API_BASE}/api/deck_draw`];
 const RESULT_END_MARKER = "\n\n===\nDECK REQUEST:\n";
 const DEFAULT_PACKS_LIMIT = 5;
 const PAGING_ENABLED_BY_DEFAULT = true;
+const TAB_PACKS = "packs";
+const TAB_DECK = "deck";
 
 const state = {
   seed: "",
   rawResultText: "",
+  activeTab: TAB_PACKS,
   packs: [],
   filteredPacks: [],
   quantities: new Map(),
@@ -25,6 +29,11 @@ const state = {
 };
 
 const elements = {
+  packTabBtn: document.getElementById("packTabBtn"),
+  deckTabBtn: document.getElementById("deckTabBtn"),
+  packControls: document.getElementById("packControls"),
+  packViews: Array.from(document.querySelectorAll(".pack-view")),
+  deckPanel: document.getElementById("deckPanel"),
   resetBtn: document.getElementById("resetBtn"),
   exportBtn: document.getElementById("exportBtn"),
   importBtn: document.getElementById("importBtn"),
@@ -41,7 +50,12 @@ const elements = {
   nextPageBtn: document.getElementById("nextPageBtn"),
   togglePagingBtn: document.getElementById("togglePagingBtn"),
   selectionText: document.getElementById("selectionText"),
-  resultText: document.getElementById("resultText")
+  resultText: document.getElementById("resultText"),
+  deckConvertBtn: document.getElementById("deckConvertBtn"),
+  deckCopyBtn: document.getElementById("deckCopyBtn"),
+  deckStatusText: document.getElementById("deckStatusText"),
+  deckInputText: document.getElementById("deckInputText"),
+  deckResultText: document.getElementById("deckResultText")
 };
 
 function packKey(pack) {
@@ -51,6 +65,34 @@ function packKey(pack) {
 function setStatus(text, isError = false) {
   elements.statusText.textContent = text;
   elements.statusText.classList.toggle("error", isError);
+}
+
+function setDeckStatus(text, isError = false) {
+  if (!elements.deckStatusText) {
+    return;
+  }
+  elements.deckStatusText.textContent = text;
+  elements.deckStatusText.classList.toggle("error", isError);
+}
+
+function applyTabVisibility() {
+  const isDeckTab = state.activeTab === TAB_DECK;
+  if (elements.packControls) {
+    elements.packControls.classList.toggle("hidden", isDeckTab);
+  }
+  for (const section of elements.packViews) {
+    section.classList.toggle("hidden", isDeckTab);
+  }
+  if (elements.deckPanel) {
+    elements.deckPanel.classList.toggle("hidden", !isDeckTab);
+  }
+  elements.packTabBtn?.classList.toggle("active", !isDeckTab);
+  elements.deckTabBtn?.classList.toggle("active", isDeckTab);
+}
+
+function setActiveTab(tab) {
+  state.activeTab = tab === TAB_DECK ? TAB_DECK : TAB_PACKS;
+  applyTabVisibility();
 }
 
 function normalizePack(row) {
@@ -137,6 +179,25 @@ async function fetchJson(url, options = undefined) {
     throw new Error(message);
   }
   return body;
+}
+
+async function fetchDeckDraw(payload) {
+  let lastError = null;
+  for (const endpoint of DECK_DRAW_ENDPOINTS) {
+    try {
+      return await fetchJson(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      lastError = err;
+      if (!String(err.message || err).includes("404")) {
+        throw err;
+      }
+    }
+  }
+  throw lastError || new Error("Deck conversion failed.");
 }
 
 function applyPacksPayload(payload) {
@@ -437,6 +498,58 @@ async function copyResultText() {
   }
 }
 
+function clearDeckResultText() {
+  if (elements.deckResultText) {
+    elements.deckResultText.value = "";
+  }
+}
+
+async function convertDeckText() {
+  const deckText = elements.deckInputText?.value || "";
+  if (!deckText.trim()) {
+    setDeckStatus("Paste deck text before converting.", true);
+    return;
+  }
+  if (elements.deckConvertBtn) {
+    elements.deckConvertBtn.disabled = true;
+  }
+  setDeckStatus("Requesting conversion...");
+  try {
+    const response = await fetchDeckDraw({ text: deckText });
+    const text = response && typeof response.text === "string" ? response.text : "";
+    if (elements.deckResultText) {
+      elements.deckResultText.value = text;
+    }
+    const converted = Number(response?.cardCount) || 0;
+    const missing = Number(response?.missingCount) || 0;
+    if (missing > 0) {
+      setDeckStatus(`Converted ${converted} cards. Skipped ${missing} unmatched entries.`, true);
+    } else {
+      setDeckStatus(`Converted ${converted} cards.`);
+    }
+  } catch (err) {
+    setDeckStatus(String(err.message || err), true);
+  } finally {
+    if (elements.deckConvertBtn) {
+      elements.deckConvertBtn.disabled = false;
+    }
+  }
+}
+
+async function copyDeckResultText() {
+  const value = elements.deckResultText?.value || "";
+  if (!value) {
+    setDeckStatus("No converted text to copy.", true);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    setDeckStatus("Converted text copied.");
+  } catch (err) {
+    setDeckStatus("Clipboard copy failed.", true);
+  }
+}
+
 function resetQuantities() {
   state.quantities.clear();
   renderPacks();
@@ -551,8 +664,10 @@ async function togglePagination() {
 }
 
 async function init() {
+  setActiveTab(TAB_PACKS);
   setSeed(generateSeed());
   clearResultText();
+  clearDeckResultText();
   await reloadPacks("Loaded");
 }
 
@@ -561,6 +676,10 @@ elements.copyBtn.addEventListener("click", copyResultText);
 elements.resetBtn.addEventListener("click", resetQuantities);
 elements.exportBtn.addEventListener("click", exportSelection);
 elements.importBtn.addEventListener("click", () => void importSelection());
+elements.packTabBtn?.addEventListener("click", () => setActiveTab(TAB_PACKS));
+elements.deckTabBtn?.addEventListener("click", () => setActiveTab(TAB_DECK));
+elements.deckConvertBtn?.addEventListener("click", () => void convertDeckText());
+elements.deckCopyBtn?.addEventListener("click", () => void copyDeckResultText());
 elements.seedInput?.addEventListener("input", () => {
   state.seed = elements.seedInput.value.trim();
 });
@@ -568,6 +687,9 @@ elements.drawFour?.addEventListener("change", renderResultText);
 elements.prevPageBtn?.addEventListener("click", () => void goToPage(-1));
 elements.nextPageBtn?.addEventListener("click", () => void goToPage(1));
 elements.togglePagingBtn?.addEventListener("click", () => void togglePagination());
-window.addEventListener("pageshow", clearResultText);
+window.addEventListener("pageshow", () => {
+  clearResultText();
+  clearDeckResultText();
+});
 
 init();
