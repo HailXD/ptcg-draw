@@ -42,6 +42,7 @@ const elements = {
   drawHighestRaritySameCard: document.getElementById("drawHighestRaritySameCard"),
   drawFour: document.getElementById("drawFour"),
   godDraw: document.getElementById("godDraw"),
+  minDraw: document.getElementById("minDraw"),
   copyBtn: document.getElementById("copyBtn"),
   statusText: document.getElementById("statusText"),
   packList: document.getElementById("packList"),
@@ -412,11 +413,13 @@ function getSelectionPayload() {
   const highest = Boolean(elements.drawHighestRaritySameCard?.checked);
   const draw4 = Boolean(elements.drawFour?.checked);
   const godDraw = Boolean(elements.godDraw?.checked);
+  const minDraw = Boolean(elements.minDraw?.checked);
   return {
     seed: ensureSeed(),
     highest,
     draw4,
     godDraw,
+    minDraw,
     packs: getSelectedPacks()
   };
 }
@@ -607,6 +610,11 @@ async function importSelection() {
       parsed?.godDraw ?? parsed?.god_draw ?? parsed?.god
     );
   }
+  if (elements.minDraw) {
+    elements.minDraw.checked = Boolean(
+      parsed?.minDraw ?? parsed?.min_draw ?? parsed?.min
+    );
+  }
   renderResultText();
   const entries = getImportedEntries(parsed);
   if (entries.length === 0) {
@@ -684,6 +692,16 @@ elements.seedInput?.addEventListener("input", () => {
   state.seed = elements.seedInput.value.trim();
 });
 elements.drawFour?.addEventListener("change", renderResultText);
+elements.godDraw?.addEventListener("change", () => {
+  if (elements.godDraw?.checked && elements.minDraw) {
+    elements.minDraw.checked = false;
+  }
+});
+elements.minDraw?.addEventListener("change", () => {
+  if (elements.minDraw?.checked && elements.godDraw) {
+    elements.godDraw.checked = false;
+  }
+});
 elements.prevPageBtn?.addEventListener("click", () => void goToPage(-1));
 elements.nextPageBtn?.addEventListener("click", () => void goToPage(1));
 elements.togglePagingBtn?.addEventListener("click", () => void togglePagination());
